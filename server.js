@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 let accessToken = null;
-let latestDonation = null;
+let donationQueue = []; // Теперь это очередь из неотправленных донатов
 
 app.get('/', (req, res) => {
     const authUrl = `https://www.donationalerts.com/oauth/authorize?` +
@@ -41,8 +41,13 @@ app.get('/callback', async (req, res) => {
 });
 
 app.get('/latest-donation', (req, res) => {
-    res.json(latestDonation);
-    latestDonation = null;
+    // Отдаём первый донат из очереди и убираем его
+    if (donationQueue.length > 0) {
+        const donation = donationQueue.shift();
+        res.json(donation);
+    } else {
+        res.json(null);
+    }
 });
 
 setInterval(async () => {
@@ -52,14 +57,13 @@ setInterval(async () => {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         const donations = response.data.data;
-        if (donations.length > 0) {
-            const last = donations[0];
-            latestDonation = {
+        // Добавляем все новые донаты в очередь
+        for (const last of donations) {
+            donationQueue.push({
                 nickname: last.username || 'Anonymous',
                 amount: last.amount,
                 currency: last.currency,
-            };
-            console.log(`New donation: ${latestDonation.nickname} - ${latestDonation.amount} ${latestDonation.currency}`);
+            });
         }
     } catch (error) {
         console.error('Error fetching donations:', error.response?.data || error.message);
