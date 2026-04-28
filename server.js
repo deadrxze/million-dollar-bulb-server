@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -9,6 +10,7 @@ app.use(express.json());
 
 let accessToken = null;
 let donationQueue = [];
+let lastFetchTime = new Date().toISOString(); // время последнего запроса
 
 app.get('/', (req, res) => {
     const authUrl = `https://www.donationalerts.com/oauth/authorize?` +
@@ -52,12 +54,18 @@ app.get('/latest-donation', (req, res) => {
 setInterval(async () => {
     if (!accessToken) return;
     try {
+        // Запрашиваем только донаты, созданные после lastFetchTime
         const response = await axios.get('https://www.donationalerts.com/api/v1/alerts/donations', {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            params: { date_from: lastFetchTime }
         });
         const donations = response.data.data;
+        // Обновляем время последней проверки на текущий момент
+        lastFetchTime = new Date().toISOString();
+
         for (const last of donations) {
             donationQueue.push({
+                id: crypto.randomUUID(),          // уникальный ID для клиента
                 nickname: last.username || 'Anonymous',
                 amount: last.amount,
                 currency: last.currency,
