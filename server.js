@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 let accessToken = null;
-let donationQueue = [];   // здесь временно хранятся донаты между запросами
+let donationQueue = [];
 
 app.get('/', (req, res) => {
     const authUrl = `https://www.donationalerts.com/oauth/authorize?` +
@@ -40,11 +40,10 @@ app.get('/callback', async (req, res) => {
     }
 });
 
-// Отдаём сразу все накопившиеся донаты и очищаем очередь
 app.get('/latest-donation', (req, res) => {
-    const batch = donationQueue.splice(0);   // копируем массив и очищаем оригинал
-    if (batch.length > 0) {
-        res.json(batch);
+    if (donationQueue.length > 0) {
+        const donation = donationQueue.shift();
+        res.json(donation);
     } else {
         res.json(null);
     }
@@ -59,7 +58,6 @@ setInterval(async () => {
         const donations = response.data.data;
         for (const last of donations) {
             donationQueue.push({
-                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 nickname: last.username || 'Anonymous',
                 amount: last.amount,
                 currency: last.currency,
