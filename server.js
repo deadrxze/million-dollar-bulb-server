@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -8,9 +9,8 @@ app.use(cors());
 app.use(express.json());
 
 let accessToken = null;
-let donationQueue = []; // Очередь неотправленных донатов
+let donationQueue = [];
 
-// Главная страница — запуск авторизации в DonationAlerts
 app.get('/', (req, res) => {
     const authUrl = `https://www.donationalerts.com/oauth/authorize?` +
         `client_id=${process.env.APP_ID}&` +
@@ -20,7 +20,6 @@ app.get('/', (req, res) => {
     res.redirect(authUrl);
 });
 
-// Callback, на который DonationAlerts перенаправляет после авторизации
 app.get('/callback', async (req, res) => {
     const { code } = req.query;
     if (!code) return res.send('Authorization code is missing.');
@@ -42,17 +41,15 @@ app.get('/callback', async (req, res) => {
     }
 });
 
-// Отдача последнего доната из очереди
 app.get('/latest-donation', (req, res) => {
     if (donationQueue.length > 0) {
-        const donation = donationQueue.shift(); // забираем один донат и удаляем его из очереди
+        const donation = donationQueue.shift();
         res.json(donation);
     } else {
         res.json(null);
     }
 });
 
-// Фоновая проверка новых донатов каждые 5 секунд
 setInterval(async () => {
     if (!accessToken) return;
     try {
@@ -60,10 +57,9 @@ setInterval(async () => {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         const donations = response.data.data;
-        // Добавляем все новые донаты в очередь
         for (const last of donations) {
             donationQueue.push({
-                id: String(last.alert_id), // уникальный идентификатор доната
+                id: crypto.randomUUID(),
                 nickname: last.username || 'Anonymous',
                 amount: last.amount,
                 currency: last.currency,
