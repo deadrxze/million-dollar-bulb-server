@@ -1,7 +1,6 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -10,6 +9,7 @@ app.use(express.json());
 
 let accessToken = null;
 let donationQueue = [];
+const seenAlertIds = new Set(); // будет хранить уже обработанные alert_id
 
 app.get('/', (req, res) => {
     const authUrl = `https://www.donationalerts.com/oauth/authorize?` +
@@ -58,8 +58,11 @@ setInterval(async () => {
         });
         const donations = response.data.data;
         for (const last of donations) {
+            // Пропускаем донаты, которые уже были добавлены в очередь
+            if (seenAlertIds.has(last.alert_id)) continue;
+            seenAlertIds.add(last.alert_id);
             donationQueue.push({
-                id: crypto.randomUUID(),
+                id: String(last.alert_id),        // теперь используем родной alert_id
                 nickname: last.username || 'Anonymous',
                 amount: last.amount,
                 currency: last.currency,
